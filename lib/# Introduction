@@ -1,0 +1,671 @@
+# Introduction
+
+Our Ruby library lets you easily identify your users, track their behaviours and make full use of the API.
+The SDK also allows you to dynamically create and remove leaderboards, contests, badges, retrieve leaderboard results etc...
+
+0. [Getting started](#getting-started)
+  * [Initializing the SDK](#initializing-the-sdk)
+1. [Players](#players)
+  * [Identify](#identify)
+  * [Add Identity (Social)](#add-identity)
+  * [Remove Identity (Social)](#remove-identity)
+2. [Behaviours](#behaviours)
+  * [Simple tracking](#simple-tracking)
+  * [Contextual tracking](#contextual-tracking)
+  * [Using the tracking response](#using-the-tracking-response)
+3. [Leaderboards](#leaderboards)
+  * [Getting leaderboard current results](#getting-leaderboard-current-results)
+  * [Getting leaderboard results for a specific player](#getting-leaderboard-results-for-a-specific-player)
+  * [Creating a Leaderboard](#creating-a-leaderboard)
+  * [Creating a Leaderboard with rewards](#creating-a-leaderboard-with-rewards)
+  * [Deleting a Leaderboard](#deleting-a-leaderboard)
+4. [Badges](#badges)
+  * [Getting unlocked badges of a player](#getting-unlocked-badges-of-a-player)
+  * [Getting locked badges of a player](#getting-locked-badges-of-a-player)
+  * [Creating a Badge](#creating-a-badge)
+  * [Deleting a Badge](#deleting-a-badge)
+
+
+## Getting started
+
+### Adding the Gem
+
+```bash
+gem install behave
+```
+
+Or directly in your Gemfile
+
+```ruby
+gem 'behave', '~> 0.0.1'
+```
+
+### Initializing the SDK
+
+Before starting to do anything, you need to initialize the SDK with a valid API access token.
+You can find the token from your dashboard within the app settings.
+
+```ruby
+require 'behave'
+
+Behave.init 'YOUR_API_TOKEN'
+```
+
+## Players
+
+### Identify
+
+You need to identify your users at least once so their player profiles can be created.
+If you identify a user multiple times with the same id, the existing player will be updated and returned instead of being created. You can optionally attribute some traits to the player.
+
+**Note:** If you start tracking behaviours of a player that you have not yet identified, it will be automatically identified for you. The Identify API is just the regular way to create/update your players profiles in case you want to add extra traits to them (name, email, picture, ...)
+
+* **Method:** POST
+* **Endpoint:** /players/:reference_id/identify
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| ------:|
+| reference_id  | String | **(Required)** The id of the player in YOUR database |
+| traits        | Object | (optional) The custom traits you assign to the player. You can use any key-value pair to give attributes to the player. The 2 special fields: ``name`` and ``picture`` will be used as display information from the admin interface. We recommend to specify them if you can.  |
+| timestamp     | Number | (optional) A **unix timestamp** that tells when this identification happened. **Make sure you specify a timestamp when importing data**. We will use the server's current time by default. |
+
+Example:
+
+```ruby
+Behave.identify '42',
+  # Optional traits
+  email: 'olivier@behave.io',       # special trait
+  name: 'Olivier Thierry',          # special trait 
+  picture: 'http://url_to_picture', # special trait
+  foo: 'bar'                        # custom trait
+```
+
+the returned Player has the following attributes
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| ------:|
+| _id           | String | The id of the Player |
+| reference_id  | String | The custom unique id you have specified to identify this player |
+| points        | Number | The number of points of the player (default to 0) |
+| traits        | Object | The custom traits you have given to the player |
+
+### Add Identity
+
+* **Method:** POST
+* **Endpoint:** /players/:player_id/identities
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| player_id  | String | **(Required)** The reference_id you use to identify the player |
+| reference_id  | String | **(Required)** The id of the player WITHIN the provider's servers |
+| provider      | String | **(Required)** Provider key ("facebook", "twitter", "yammer")  |
+
+You can easily bind social providers (facebook, twitter, yammer, and more soon enought) to your players using the identities API.
+
+For example if my users logs in my app using facebook, I can do the following (make sure you identify the player before)
+
+Example:
+
+```ruby
+Behave::Player.addIdentity '42', 'USER_FACEBOOK_ID', 'facebook'
+```
+
+It will bind the facebook user id to the player. If you haven't specified a picture or a name in your players traits, we will grab the ones from facebook **without asking any additional permissions**.
+
+NOTE: If your app has asked for provider friends list read permission, you will be able to make leaderboards "between friends" without any additional code.
+
+NOTE2: If your app has asked for provider write permissions (like posting on opengraph on behalf of the user) you will be able to automatically share badge unlocks and more trough the opengraph without any additional code when you want it.
+
+### Remove Identity
+
+* **Method:** DELETE
+* **Endpoint:** /players/:player_id/identities/:provider
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| player_id | String | **(Required)** The reference_id you use to identify the player |
+| provider | String | **(Required)** Provider key ("facebook", "twitter", "yammer")  |
+
+Example:
+
+```php
+Behave::Player.removeIdentity '42', 'facebook'
+```
+
+## Behaviours
+
+You need to track your players behaviours if you want to reward them for doing so! Tracking can be either **simple** or **contextual**. You can specify ANY key value pairs to describe the context to which the behaviour was taken (See examples below):
+
+* **Method:** POST
+* **Endpoint:** /players/:player_id/track
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| player_id | String | **(Required)** The reference_id you use to identify the player who's performing the behaviour |
+| verb      | String | **(Required)** The name of the behaviour you are tracking  |
+| context      | Object | (optional) You can specify ANY key value pairs to describe the context to which the behaviour was taken. Optionally, A special field ``timestamp`` **(unix timestamp)** defines when was this behaviour taken. **Make sure you specify a timestamp when importing data**. We will use the server's current time by default. |
+
+### Simple tracking
+
+```ruby
+Behave.track '42', 'check-in'
+```
+
+### Contextual tracking
+
+It is recommended to best describe the context in which the behaviour was taken when it makes sense to know about it.
+
+```ruby
+Behave.track '42', 'check-in',
+  placeId: 24,
+  with_friends: [4,12,435,1]
+```
+
+### Using the tracking response
+
+When you track a user behaviour, you get back a response of basically what happened. The response contains the actions that the tracking has triggered (from your [recipes](http://dashboard.behave.io/recipes)).
+
+The response **always contains 3 attributes**.
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| badges         | Array[Object] | The unlocked badges |
+| points        | Object | With 2 attributes: ``earned`` and ``balance``. ``earned`` is the number of points the user earned by taking the action or 0 if no points earned, ``balance`` is the updated balance of the player points |
+| leaderboards  | Array[Object] |  Leaderboard updates (if any,  empty otherwise). See bellow for detailed structure |
+
+Example:
+
+```ruby
+result = Behave.track '42', 'check-in', 
+  placeId: 24, 
+  with_friends: [4,12,435,1]
+```
+
+Example accessing ``result.points`` attribute.
+
+```ruby
+result.points
+{ 
+  # The number of points the user earned by taking the action
+  earned: 0, 
+
+  # The player's updated balance including the points he just earned
+  balance: 840
+}
+```
+
+If not empty ``result.badges`` contains the Badges that the user has just unlocked. The structure looks like this:
+
+```php
+result.badges
+[
+  {
+    # Reward id
+    _id: "52a01b67cc7df72c79000003",
+    # Number of times this reward was earned by this player
+    count: 1,
+    # Badge definition
+    badge: {
+      # Badge id
+      _id: "529fff2356ce248366000006",
+      # Badge custom id you have defined, null otherwise
+      reference_id: deloitte-newbie-badge",
+      # badge name
+      name: "Deloitte Newbie",
+      # badge hint
+      hint: "Check-in 2 times at Deloitte",
+      # badge unlock message
+      message: Whooa! Look like you are new in da place. keep the effort and you will be rewarded."
+    }
+  ]
+```
+
+If not empty, ``result.leaderboards`` will contain something like this
+
+```ruby
+result.leaderboards
+[
+  {
+     # The updated leaderboard
+     leaderboard: {
+        _id: '529fff1156ce248366000006',
+        reference_id: 'test-lb'
+     },
+     # Player's position before the update
+     prev_position: 5,
+     # Player's position after the update
+     post_position: 2,
+     # Player's updated score
+     score: 435,
+   }
+]
+```
+
+* **points** contains 2 attributes: ``earned`` and ``balance``. ``earned`` is the points that the player has earned by performing the behaviour and ``earned`` is the updated points balance.
+* **badges** is an array that contains the Badges that the user has just unlocked.
+* **leaderboards** is an array that contains leaderboard updates if any. An leaderboard update contains info about the updated score, the previous position (before the tracking) and the post position (after the tracking).
+
+## Leaderboards
+
+**Note:** If you want to test you leaderboard results, you can directly use [the built-in simulator](http://dashboard.behave.io/#/simulator) to test API calls.
+
+### Getting leaderboard current results
+
+You can fetch the actual results of any leaderboard at anytime. Here is an example:
+
+* **Method:** POST
+* **Endpoint:** /leaderboards/:leaderboard_reference_id/results
+* **Parameters:**
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| leaderboard_reference_id | String | **(Required)** The reference_id or id of the leaderboard |
+| options | Object | **(Optional)** Result fetching options |
+
+Example
+
+```php
+lbResults = Behave::Leaderboard.results 'sample-leaderboard'
+# or
+lbResults = Behave::Leaderboard.results 'sample-leaderboard', options
+```
+
+Available options are:
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| page          | Number        | (Optional) The results page to fetch. Default is 1|
+| limit         | Number        | (Optional) The max number of results per page. MAXIMUM is 1000 |
+| max           | Number        | (Optional) The maximum position to fetch, default is 0 => None |
+| player_id     | String | A player's reference_id (Optional). If specified, the given player will ALWAYS appear in the results (not duplicated). It is very useful if for example you want to always include the current player in the results |
+| players | Array[String] | (Optional) The players to include in the results, default is null => ALL |
+| positions     | String        | (Optional) The way positions are calculated. Possible values are `relative` and `absolute`. `relative` will set the positions according to the players that are included in the results, `absolute` will set the positions according to all the players in the leaderboards. This is useful when for example you want to fetch the results for a player and his friends only. In this situation you could pass `relative` so that the positions are computed between friends and not between all the players in the leaderboards. |
+| context     | Object        | (Optional) You can segment results according to a specific context. For example, on a leaderboard with ``all-time`` timeframe, if you want to get the results of weeks 42 only you could have ``{ timestamp: '>=1381701600,<1382306400' }``. You can also use any custom key you have specified in the context when tracking behaviours using ``track()``.  **On large leaderboards this can have an impact on performances.** |
+Results structure will look like this
+
+```ruby
+[
+  {
+    score  => 129,
+    position => 1,
+    player => {
+      _id: "529fe03ecbd86b9d6c000002",
+      reference_id: '42',
+      traits: {
+        name: 'Olivier Thierry'
+        email: 'olivier@behave.io'
+      },
+      identities: {
+        facebook: 12323
+      }
+    }
+  },
+  {
+    score: 102,
+    position: 2,
+    player: {
+      _id: "947pg03ecbd86b9d6c05520",
+      reference_id: '43',
+      traits: {
+        name: 'Olivier Jeandel'
+        email: 'jide@behave.io'
+      },
+      identities: {
+         facebook: 5435
+      }
+    }
+  }
+]
+```
+
+### Getting leaderboard results for a specific player
+
+You can also fetch results for a particular player. Let's say you want to fetch the results of a player on one, many or even ALL the leaderboards **the player is in** then you can use this to do so.
+
+* **Method:** POST
+* **Endpoint:** /leaderboards/player-results
+* **Parameters:** 
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| player_id  | String | **(Required)** The player to fetch results from  |
+| options  | Object | **(Optional)** Result fetching options  |
+
+Available options are:
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| leaderboards  | Array[String] | (Optional) Leaderboards to process, if empty all the leaderboards will be processed.  |
+| max           | Number        | (Optional) The maximum player position acceptance for the leaderboard to be selected.  |
+
+Example:
+
+```ruby
+playerResults = Behave::Player.ranks '42'
+[
+  {
+     leaderboard: {
+        _id: '529fff1156ce248366000006',
+        reference_id: 'test-lb',
+        metadata: {
+          foo: 'bar',
+          custom: 'data'
+        }
+     },
+     # Player's position
+     position: 2,
+     # Player's updated score
+     score: 435
+  },
+  {
+     leaderboard: {
+        _id: '876fff1156ce248366000367',
+        reference_id: 'another-test-lb',
+        metadata: {}
+     },
+     # Player's position
+     position: 18,
+     # Player's updated score
+     score: 114
+  }
+]
+```
+
+For example, if we want to fetch all the leaderboard results for player 42 where he/she is in the top 3:
+
+```php
+playerResults = Behave::Player.ranks '42', max: 3 // Max position
+
+# Will give something like this:
+[
+  {
+     leaderboard: {
+        _id: '529fff1156ce248366000006',
+        reference_id: 'test-lb'
+     },
+     # Player's position
+     position: 2,
+     # Player's updated score
+     score: 435
+  }
+]
+```
+
+### Iterating leaderboard results
+
+You can pass an additional block to ``Behave::Leaderboard.results()`` in order to iterate leaderboard results over pages (a page's limit is 1000 maximum). This is recommended when you want to fetch more than 1000 entries.
+
+Example:
+
+```ruby
+# Will fetch by batch of 1000 sorted by positions (ascending)
+Behave::Leaderboard.results 'test-lb' do |batch, page|
+ # ...
+end
+
+# Will fetch by batch of 100 sorted by positions (ascending) and stops
+# at position 2500
+Behave::Leaderboard.results 'test-lb', {limit: 100, max: 2500} do |batch, page|
+ # ...
+end
+```
+
+### Creating a Leaderboard
+
+**Note:** You can manage your leaderboards directly [from the dashboard](http://dashboard.behave.io/#/leaderboards). In case your app needs to dynamically create leaderboards you can use the API to do so.
+
+* **Method:** POST
+* **Endpoint:** /leaderboards
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| name        | String | **(Required)** The name of the leaderboard |
+| reference_id        | String | **(Required)** The unique reference_id you want to use for this leaderboard |
+| options        | Object | **(Optional)** Additional attributes/options for the leaderboard creation |
+
+Available options are:
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| type        | Number | (Optional) - Available values are ``0`` (score) and ``1`` (behavioural). Default is 0 |
+| scoreType  | Number |  (Optional) - You can specify how the scores are computed, ``Behave::Leaderboard::Config::SCORE_SUM`` will increment scores, ``Behave::Leaderboard::Config::SCORE_MAX`` will keep the maximum score for a player and discard the other ones. |
+| timeFrame  | Number | (Optional) - Specify how often the leaderboard should be reset. Possible values are: ``Behave::Leaderboard::Config::TIME_ALLTIME`` (All time), ``Behave::Leaderboard::Config::TIME_DAILY`` (Daily), ``Behave::Leaderboard::Config::TIME_WEEKLY`` (Weekly), ``Behave::Leaderboard::Config::TIME_MONTHLY`` (Monthly). Default to ``Behave::Leaderboard::Config::TIME_ALLTIME`` (All time) |
+| rewards  | Array[Object] | Rewards for that leaderboard. See bellow for example. (Optional) |
+| metadata  | Object | Metadata are used if you want to keep track of some application-logic related data. (Optional)  |
+| active  | Boolean | Is the leaderboard active? Default to true |
+
+Example:
+
+```ruby
+Behave::Leaderboard.create 'Influencers', 'influencers-lb',
+  scoreType: Behave::Leaderboard::Config::SCORE_MAX,    # Only keep MAX score (!= SUM)
+  timeFrame: Behave::Leaderboard::Config::TIME_ALLTIME, # Never ends
+  active: true,
+```
+
+### Creating a leaderboard with rewards
+
+You can also bind rewards to a leaderboard (So it becomes a contest).
+Rewards are Badges. Each reward defines the position in the leaderboard to who this rewards should be given and the Badge that it refers to.
+
+You can define contest leaderboard this way:
+
+```ruby
+Behave::Leaderboard.create 'Influencers', 'influencers-lb',
+  scoreType: Behave::Leaderboard::Config::SCORE_SUM,   # Sum all scores (incrementation)
+  timeFrame: Behave::Leaderboard::Config::TIME_WEEKLY, # Weekly lenaderboards, restarts every week
+  active: true,
+  rewards: [{
+    position: 1,
+    badge: 'some-custom-id-or-original-id-of-the-badge'
+  }]
+```
+
+### Deleting a leaderboard
+
+You can delete a leaderboard at anytime. **THIS ACTION CANNOT BE UNDONE**
+
+* **Method:** DELETE
+* **Endpoint:** /leaderboards/:leaderboard_reference_id
+* **Parameters:**
+
+| Name          | Type          | Value  |
+| ------------- |:-------------:| -----:|
+| leaderboard_reference_id | String | **(Required)** The reference_id or id of the leaderboard to remove |
+
+Example:
+
+```ruby
+Behave::Leaderboard.delete 'some-custom-id-or-original-id'
+```
+
+## Badges
+
+### Getting UNLOCKED badges of a player
+
+* **Method:** GET
+* **Endpoint:** /players/:player_reference_id/badges
+* **Parameters:**
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| player_id  | String | **(Required)** The player to fetch unlocked badges from  |
+
+Example:
+
+```ruby
+Behave::Player.badges '42'
+
+# Example Response
+{
+  "data": [
+    {
+      # Reward id
+      "_id": "530007cf0af9fbcf2d58e779",
+
+      # Reward owner (the player)
+      "player": "530006e4f27bfdb92dc3eac1",
+
+      # Last time the badge was unlocked (unix timestamp)
+      "lastUnlockedAt": 1392510927,
+
+      # The number of times this badges has been unlocked by this player
+      "count": 1
+
+      # The reward's badge 
+      "badge": {
+        # Badge id
+        "_id": "52b83490739f878842000014",
+        
+        # Is the badge active?
+        "active": true,
+
+        # Current app
+        "app_id": "52b0f1d32e2ce4e91100000c",
+
+        # Badge Hint
+        "hint": "Trouvez 1 mot en moins de 7 secondes.",
+
+        # Badge Icon
+        "icon": "https://s3-eu-west-1.amazonaws.com/behave-production/uploads/9d05563b89934f615951bc6425f029e6.png",
+
+         # The limit of unlocks that can be done (e.g limit of 10 means that maximum 10 players can unlock the badge)        
+        "limit": 0,
+
+        "localization": {
+          "fr_FR": {
+            "message": "Moins de 7 secondes pour 1 mot est un challenge ! Bravo.",
+            "hint": "Trouvez 1 mot en moins de 7 secondes.",
+            "name": "Flash Gordon",
+            "is_default": false
+          },
+          "en_US": {
+            "is_default": true
+          }
+        },
+
+        # Badge message (when unlocked)
+        "message": "Vous l'avez fait ! Moins de 7 secondes pour 1 mot est un challenge ! Bravo.",
+
+        # Badge name
+        "name": "Flash Gordon",
+
+        # Badge reference_id
+        "reference_id": "flash-gordon",
+
+        # Badge social bindings (OpenGraph) if enabled from the dashboard
+        "social": {
+          "facebook": {
+            "ogType": "pics-n-words:badge",
+            # Badge id in the facebook opengraph
+            "ogId": "775995212414594"
+          }
+        },
+
+        # Is the badge unique? (can be unlocked once per player)
+        "unique": true
+      }
+    },
+    # ...
+```
+
+### Getting LOCKED badges of a player
+
+* **Method:** GET
+* **Endpoint:** /players/:player_reference_id/badges/todo
+* **Parameters:**
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| player_id  | String | **(Required)** The player to fetch unlocked badges from  |
+
+Example:
+
+```ruby
+Behave::Player.lockedBadges '42'
+
+# Example Response
+{
+  "data": [
+    {
+      # Badge id
+      "_id": "52b838c8739f87884200001c",
+
+      # Current app id
+      "app_id": "52b0f1d32e2ce4e91100000c",
+
+      # Badge Hint
+      "hint": "Watch a video trailer in the shop",
+
+      # Badge Icon
+      "icon": "https://s3-eu-west-1.amazonaws.com/behave-production/uploads/6827c5d570dece337c123fcf9447abf7.png",
+
+      # Badge message (when unlocked)
+      "message": "Yeah! You like trailers and mobile games but do you like words?!",
+
+      # Badge name
+      "name": "Trailer lover",
+
+      # Badge reference_id
+      "reference_id": "trailer-lover",
+
+      # Badge localizations (if enabled from the dashboard)
+      "localization": {
+        "fr_FR": {
+          "message": "Vous aimez les vidéos et les apps mais aimez-vous les mots ?",
+          "hint": "Regardez une video depuis la boutique.",
+          "name": "Trailer lover",
+          "is_default": false
+        },
+        "en_US": {
+          "is_default": true
+        }
+      },
+
+      # Badge social bindings (OpenGraph) if enabled from the dashboard
+      "social": {
+        "facebook": {
+          "ogType": "pics-n-words:badge",
+          # Badge id in the facebook opengraph
+          "ogId": "1413403995564661"
+        }
+      },
+
+      # Is the badge active?
+      "active": true,
+
+      # Is the badge unique? (can be unlocked once per player)
+      "unique": true,
+
+      # The limit of unlocks that can be done (e.g limit of 10 means that maximum 10 players can unlock the badge)
+      "limit": 0
+    },
+    # ...
+  ]
+}
+```
+
+### Creating a Badge
+
+**Note:** You can manage your badges directly [from the dashboard](http://dashboard.behave.io/#/badges). In case your app needs to dynamically create badges you can use the API to do so.
+
+### Deleting a Badge
+
+* **Method:** DELETE
+* **Endpoint:** /badges/:badge_reference_id
+* **Parameters:**
+
+| Name          | Type          | Value      |
+| ------------- |:-------------:| ----------:|
+| badge_reference_id  | String | **(Required)** The reference_id or id of the badge to delete  |
+
+Example:
+
+```ruby
+Behave::Badge.delete 'my-awesome-badge'
+```
