@@ -41,6 +41,7 @@ The SDK also allows you to dynamically create and remove leaderboards, contests,
 <a href="#getting-started">Getting started</a>
 
 <ul>
+<li><a href="#adding-the-gem">Adding the Gem</a></li>
 <li><a href="#initializing-the-sdk">Initializing the SDK</a></li>
 </ul>
 </li>
@@ -89,12 +90,12 @@ The SDK also allows you to dynamically create and remove leaderboards, contests,
 <h3>
 <a name="adding-the-gem" class="anchor" href="#adding-the-gem"><span class="octicon octicon-link"></span></a>Adding the Gem</h3>
 
-<div class="highlight highlight-bash"><pre>gem install behave
+<div class="highlight highlight-bash"><pre>gem install behave.io
 </pre></div>
 
 <p>Or directly in your Gemfile</p>
 
-<div class="highlight highlight-ruby"><pre><span class="n">gem</span> <span class="s1">'behave'</span><span class="p">,</span> <span class="s1">'~&gt; 0.0.1'</span>
+<div class="highlight highlight-ruby"><pre><span class="n">gem</span> <span class="s1">'behave.io'</span><span class="p">,</span> <span class="s1">'~&gt; 0.0.1'</span>
 </pre></div>
 
 <h3>
@@ -388,13 +389,13 @@ If you identify a user multiple times with the same id, the existing player will
       <span class="c1"># Badge id</span>
       <span class="nx">_id</span><span class="o">:</span> <span class="s2">"529fff2356ce248366000006"</span><span class="p">,</span>
       <span class="c1"># Badge custom id you have defined, null otherwise</span>
-      <span class="nx">reference_id</span><span class="o">:</span> <span class="nx">deloitte</span><span class="o">-</span><span class="nx">newbie</span><span class="o">-</span><span class="nx">badge</span><span class="s2">",</span>
-<span class="s2">      # badge name</span>
-<span class="s2">      name: "</span><span class="nx">Deloitte</span> <span class="nx">Newbie</span><span class="s2">",</span>
-<span class="s2">      # badge hint</span>
-<span class="s2">      hint: "</span><span class="nx">Check</span><span class="o">-</span><span class="nx">in</span> <span class="mi">2</span> <span class="nx">times</span> <span class="nx">at</span> <span class="nx">Deloitte</span><span class="s2">",</span>
-<span class="s2">      # badge unlock message</span>
-<span class="s2">      message: Whooa! Look like you are new in da place. keep the effort and you will be rewarded."</span>
+      <span class="nx">reference_id</span><span class="o">:</span> <span class="s2">"deloitte-newbie-badge"</span><span class="p">,</span>
+      <span class="c1"># badge name</span>
+      <span class="nx">name</span><span class="o">:</span> <span class="s2">"Deloitte Newbie"</span><span class="p">,</span>
+      <span class="c1"># badge hint</span>
+      <span class="nx">hint</span><span class="o">:</span> <span class="s2">"Check-in 2 times at Deloitte"</span><span class="p">,</span>
+      <span class="c1"># badge unlock message</span>
+      <span class="nx">message</span><span class="o">:</span> <span class="s2">"Whooa! Look like you are new in da place. keep the effort and you will be rewarded."</span>
     <span class="p">}</span>
   <span class="p">]</span>
 </pre></div>
